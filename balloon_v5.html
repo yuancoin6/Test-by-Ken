@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hot Air Balloon Physics V5 (Long Journey)</title>
+    <style>
+        /* --- 整体布局 --- */
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background: linear-gradient(to bottom, #4facfe 0%, #00c6fb 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            overflow: hidden;
+            color: #333;
+        }
+
+        /* V5: 标题字体稍小一点 */
+        h1 { color: white; text-shadow: 1px 1px 3px rgba(0,0,0,0.3); margin-bottom: 5px; font-size: 1.5em; }
+        h4 { color: rgba(255,255,255,0.9); margin-top: 0; font-weight: normal; margin-bottom: 10px; font-size: 0.9em; }
+
+        /* --- 主场景容器 (高度保持 500px 不变) --- */
+        #scene-container {
+            position: relative;
+            width: 600px;
+            height: 500px; 
+            border-bottom: 10px solid #558B2F;
+            background: rgba(255,255,255,0.05); 
+            box-shadow: 0 10px 30px 0 rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        /* Canvas 层级设置 */
+        #atmosphere-canvas { position: absolute; top: 0; left: 0; z-index: 0; opacity: 1.0; }
+        #effects-canvas { position: absolute; top: 0; left: 0; z-index: 20; pointer-events: none; }
+
+        /* --- V5: 气球整体组 (显著缩小) --- */
+        #balloon-group {
+            position: absolute;
+            bottom: 20px; left: 50%; transform: translateX(-50%);
+            /* 尺寸从 V4的 180x260 缩小到 130x190 */
+            width: 130px; height: 190px; 
+            z-index: 10;
+        }
+
+        /* V5: 气球内部 Canvas 缩小 */
+        #balloon-envelope-canvas {
+            background: rgba(255, 250, 240, 0.92);
+            border: 2px solid #d35400;
+            border-radius: 50% 50% 50% 50% / 45% 45% 65% 65%;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.1), 2px 4px 8px rgba(0,0,0,0.15);
+            display: block; margin: 0 auto;
+            /* CSS 尺寸匹配新的 Canvas 尺寸 110x140 */
+            width: 110px; height: 140px;
+        }
+
+        /* V5: 吊篮和绳索缩小 */
+        .rigging { position: relative; width: 50px; margin: -6px auto 0; }
+        .ropes { height: 15px; border-left: 2px solid #3E2723; border-right: 2px solid #3E2723; margin: 0 10px; }
+        .basket {
+            width: 40px; height: 25px; background: linear-gradient(to bottom, #795548, #4E342E);
+            margin: 0 auto; border-radius: 3px 3px 8px 8px; position: relative; overflow: visible; border: 2px solid #2D1A16;
+        }
+        /* V5: 火焰缩小 */
+        #flame {
+            width: 14px; height: 0px; background: linear-gradient(to top, #ff3300, #ff9900, #ffff66);
+            border-radius: 50% 50% 20% 20%; position: absolute; top: -14px; left: 13px;
+            transition: height 0.15s ease-out; box-shadow: 0 0 10px orange; opacity: 0.85; z-index: 5;
+        }
+
+        /* --- V5: 控制面板缩小 --- */
+        #controls {
+            margin-top: 15px; display: flex; gap: 10px; padding: 10px; /* 间距和内边距减小 */
+            background: rgba(255,255,255,0.25); border-radius: 15px;
+            backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+        }
+        /* 按钮整体缩小 */
+        .control-btn {
+            padding: 10px 15px; font-size: 13px; font-weight: bold; cursor: pointer; color: white;
+            border: none; border-radius: 8px; box-shadow: 0 4px 0 rgba(0,0,0,0.2); transition: all 0.1s;
+            text-transform: uppercase; display: flex; flex-direction: column; align-items: center; 
+            width: 120px; /* 宽度减小 */
+            outline: none;
+        }
+        .control-btn:active { transform: translateY(4px); box-shadow: 0 0px 0 rgba(0,0,0,0.2); }
+        .control-btn span { font-size: 18px; margin-bottom: 3px; } /* 图标缩小 */
+        .btn-subtext { font-size:0.65em; margin-top:3px; opacity:0.85; text-transform: none; font-weight: normal;}
+        
+        #heatBtn { background: linear-gradient(to bottom, #e53935, #c62828); box-shadow: 0 4px 0 #8e0000; }
+        #heatBtn:active { box-shadow: 0 0 0 #8e0000; }
+        #ventBtn { background: linear-gradient(to bottom, #039BE5, #0277BD); box-shadow: 0 4px 0 #004c8c; }
+        #ventBtn:active { box-shadow: 0 0 0 #004c8c; }
+
+        /* --- V5: 状态显示缩小 --- */
+        #status-panel { margin-top: 10px; text-align: center; color: white; text-shadow: 1px 1px 2px rgba(0,0,0,0.6); font-size: 0.9em; }
+        #temp-meter { font-size: 1.2em; font-weight: 800; }
+    </style>
+</head>
+<body>
+
+    <h1>Hot Air Balloon Physics</h1>
+    <h4>Density & Buoyancy Demo (V5 Long Journey)</h4>
+    
+    <div id="scene-container">
+        <canvas id="atmosphere-canvas" width="600" height="500"></canvas>
+
+        <div id="balloon-group">
+            <canvas id="balloon-envelope-canvas" width="110" height="140"></canvas>
+            <div class="rigging">
+                <div class="ropes"></div>
+                <div class="basket">
+                    <div id="flame"></div>
+                </div>
+            </div>
+        </div>
+
+        <canvas id="effects-canvas" width="600" height="500"></canvas>
+    </div>
+
+    <div id="controls">
+        <button id="heatBtn" class="control-btn" 
+            onmousedown="startHeating()" onmouseup="stopHeating()" onmouseleave="stopHeating()" 
+            ontouchstart="startHeating()" ontouchend="stopHeating()">
+            <span>🔥</span> Hold to BURN
+            <div class="btn-subtext">(Heats inside air)</div>
+        </button>
+        
+        <button id="ventBtn" class="control-btn" 
+            onmousedown="startVenting()" onmouseup="stopVenting()" onmouseleave="stopVenting()"
+            ontouchstart="startVenting()" ontouchend="stopVenting()">
+            <span>💨</span> Hold to VENT
+            <div class="btn-subtext">(Releases hot air)</div>
+        </button>
+    </div>
+
+    <div id="status-panel">
+        <div>Inside Temperature: <span id="temp-meter">Cool</span></div>
+        <div style="font-size: 0.9em; margin-top: 5px; font-weight: 500;" id="density-status">Status: High Density (Heavy) - Grounded</div>
+    </div>
+
+    <script>
+        const insideCanvas = document.getElementById('balloon-envelope-canvas');
+        const insideCtx = insideCanvas.getContext('2d');
+        const outsideCanvas = document.getElementById('atmosphere-canvas');
+        const outsideCtx = outsideCanvas.getContext('2d');
+        const effectsCanvas = document.getElementById('effects-canvas');
+        const effectsCtx = effectsCanvas.getContext('2d');
+
+        const balloonGroup = document.getElementById('balloon-group');
+        const flame = document.getElementById('flame');
+        const tempMeter = document.getElementById('temp-meter');
+        const densityStatus = document.getElementById('density-status');
+
+        let insideParticles = [];
+        let outsideParticles = [];
+        let ventParticles = []; 
+
+        // V5: 减少粒子数量以适应更小的空间
+        const numInsideParticles = 15; 
+        const numOutsideParticles = 150; 
+
+        let internalTemperature = 1.0; 
+        const AMBIENT_TEMPERATURE = 1.0; 
+
+        let isHeating = false;
+        let isVenting = false;
+
+        let balloonAltitude = 20; 
+        let balloonVelocity = 0;
+        const containerHeight = 500;
+        // V5: 更新气球总高度用于排气计算 (约 180px)
+        const balloonTotalHeight = 180; 
+
+        class Particle {
+            constructor(canvasWidth, canvasHeight, isInside) {
+                this.canvasW = canvasWidth;
+                this.canvasH = canvasHeight;
+                this.isInside = isInside;
+                this.x = Math.random() * this.canvasW;
+                this.y = Math.random() * this.canvasH;
+                this.vxBase = (Math.random() - 0.5);
+                this.vyBase = (Math.random() - 0.5);
+                // V5: 再次缩小粒子半径
+                this.radius = isInside ? 2.5 : 1.8; 
+            }
+
+            update(currentTemp) {
+                let effectiveTemp = this.isInside ? currentTemp : AMBIENT_TEMPERATURE;
+                let speedScale = this.isInside ? 3.0 : 1.0; // 微调速度参数
+                this.x += this.vxBase * effectiveTemp * speedScale;
+                this.y += this.vyBase * effectiveTemp * speedScale;
+                if (this.x < this.radius || this.x > this.canvasW - this.radius) this.vxBase *= -1;
+                if (this.y < this.radius || this.y > this.canvasH - this.radius) this.vyBase *= -1;
+                this.x = Math.max(this.radius, Math.min(this.x, this.canvasW - this.radius));
+                this.y = Math.max(this.radius, Math.min(this.y, this.canvasH - this.radius));
+            }
+
+            draw(ctx, currentTemp) {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                if (this.isInside) {
+                    let ratio = (currentTemp - 1.0) / 3.0; 
+                    let r = Math.floor(ratio * 255);
+                    let b = Math.floor((1-ratio) * 180) + 75;
+                    ctx.fillStyle = `rgb(${r}, 40, ${b})`;
+                } else {
+                    ctx.fillStyle = "rgba(220, 240, 255, 0.85)";
+                }
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        class VentParticle {
+            constructor(altitude) {
+                this.startX = effectsCanvas.width / 2;
+                // V5: 调整排气源头Y坐标计算
+                this.startY = containerHeight - altitude - balloonTotalHeight + 10;
+                this.x = this.startX + (Math.random() - 0.5) * 15; 
+                this.y = this.startY;
+                this.vx = (Math.random() - 0.5) * 1.5; 
+                this.vy = -2.5 - Math.random() * 2.5; 
+                this.radius = 4 + Math.random() * 4; // V5: 缩小排气粒子
+                this.opacity = 0.7; 
+                this.life = 1.0; 
+            }
+
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.vy *= 0.98; 
+                this.radius += 0.25; 
+                this.opacity -= 0.02; 
+                this.life = this.opacity;
+            }
+
+            draw(ctx) {
+                if (this.opacity <= 0) return;
+                ctx.beginPath();
+                let grad = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, this.radius);
+                grad.addColorStop(0, `rgba(255, 255, 255, ${this.opacity})`);
+                grad.addColorStop(1, `rgba(255, 255, 255, 0)`);
+                ctx.fillStyle = grad;
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.closePath();
+            }
+        }
+
+        function initParticles() {
+            for (let i = 0; i < numInsideParticles; i++) insideParticles.push(new Particle(insideCanvas.width, insideCanvas.height, true));
+            for (let i = 0; i < numOutsideParticles; i++) outsideParticles.push(new Particle(outsideCanvas.width, outsideCanvas.height, false));
+        }
+
+        function animate() {
+            insideCtx.clearRect(0, 0, insideCanvas.width, insideCanvas.height);
+            outsideCtx.clearRect(0, 0, outsideCanvas.width, outsideCanvas.height);
+            effectsCtx.clearRect(0, 0, effectsCanvas.width, effectsCanvas.height);
+            
+            if (isHeating && internalTemperature < 4.0) {
+                internalTemperature += 0.025; 
+            } else if (isVenting && internalTemperature > AMBIENT_TEMPERATURE) {
+                internalTemperature -= 0.06; 
+                ventParticles.push(new VentParticle(balloonAltitude));
+                ventParticles.push(new VentParticle(balloonAltitude));
+            } else if (internalTemperature > AMBIENT_TEMPERATURE) {
+                internalTemperature -= 0.004; 
+            }
+            if (internalTemperature < AMBIENT_TEMPERATURE) internalTemperature = AMBIENT_TEMPERATURE;
+
+            outsideParticles.forEach(p => { p.update(internalTemperature); p.draw(outsideCtx, internalTemperature); });
+            insideParticles.forEach(p => { p.update(internalTemperature); p.draw(insideCtx, internalTemperature); });
+
+            for (let i = ventParticles.length - 1; i >= 0; i--) {
+                let vp = ventParticles[i];
+                vp.update();
+                vp.draw(effectsCtx);
+                if (vp.life <= 0) ventParticles.splice(i, 1);
+            }
+
+            updateBalloonPosition();
+            updateStatusUI();
+
+            requestAnimationFrame(animate);
+        }
+
+        function updateBalloonPosition() {
+            let tempDifference = internalTemperature - AMBIENT_TEMPERATURE;
+            // V5: 调整物理参数，让小气球运动更平滑
+            let targetVelocity = (tempDifference * 1.2) - 0.7;
+            balloonVelocity += (targetVelocity - balloonVelocity) * 0.035;
+            balloonAltitude += balloonVelocity;
+            
+            // V5: 更新最大高度边界。容器500 - 气球高约190 = 310. 留余地设为 300.
+            const maxAltitude = 300;
+            if (balloonAltitude < 20) { balloonAltitude = 20; balloonVelocity = 0; } 
+            else if (balloonAltitude > maxAltitude) { balloonAltitude = maxAltitude; balloonVelocity = 0; }
+            balloonGroup.style.bottom = `${balloonAltitude}px`;
+        }
+
+        function updateStatusUI() {
+             let tempText = "Cool"; let color = "#b3e5fc";
+             if (internalTemperature > 3.0) { tempText = "HOT!"; color = "#ff5252"; }
+             else if (internalTemperature > 2.0) { tempText = "Warm"; color = "#ffd740"; }
+             tempMeter.innerText = tempText; tempMeter.style.color = color;
+             let statusText = "";
+             if (balloonAltitude <= 22) statusText = "Status: High Density (Heavy) - Grounded";
+             else if (balloonVelocity > 0.15) statusText = "Status: Low Density (Light) - Rising ▲";
+             else if (balloonVelocity < -0.15) statusText = "Status: Increasing Density - Descending ▼";
+             else statusText = "Status: Balanced Density - Floating";
+             densityStatus.innerText = statusText;
+        }
+
+        // V5: 火焰最大高度减小
+        function startHeating() { isHeating = true; flame.style.height = "30px"; }
+        function stopHeating() { isHeating = false; flame.style.height = "0px"; }
+        function startVenting() { isVenting = true; }
+        function stopVenting() { isVenting = false; }
+
+        initParticles();
+        animate();
+    </script>
+</body>
+</html>
