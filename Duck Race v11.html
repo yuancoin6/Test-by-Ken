@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Duck Race: Survivor Mode + History</title>
+    <style>
+        /* --- Basic Styles --- */
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #b3e5fc;
+            text-align: center;
+            padding: 20px;
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            box-sizing: border-box;
+            overflow: hidden;
+        }
+        h1 { color: #01579b; text-shadow: 2px 2px 4px #4fc3f7; margin: 5px 0; }
+
+        /* --- Control Panel --- */
+        #controls {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 10px 20px;
+            border-radius: 15px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+            margin-bottom: 10px;
+            flex-shrink: 0;
+            z-index: 50;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* Class Selectors */
+        .class-selector {
+            display: flex;
+            gap: 8px;
+            margin-bottom: 8px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+        .class-btn {
+            background-color: #7e57c2;
+            color: white;
+            border: none;
+            padding: 5px 12px;
+            border-radius: 15px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: bold;
+            box-shadow: 0 3px #512da8;
+            transition: all 0.1s;
+        }
+        .class-btn:active { transform: translateY(2px); box-shadow: 0 0 #512da8; }
+        .class-btn.active { background-color: #ffca28; color: #333; box-shadow: 0 3px #ff8f00; }
+
+        textarea { 
+            width: 90%; height: 40px; 
+            border: 2px solid #81d4fa; border-radius: 10px; padding: 8px; 
+            font-family: inherit; font-size: 14px; margin-bottom: 8px;
+            resize: none;
+            background-color: #fafafa;
+        }
+        
+        .btn-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; justify-content: center;}
+        
+        button.action-btn {
+            border: none; padding: 8px 18px; font-size: 15px; font-weight: bold; cursor: pointer;
+            border-radius: 30px; transition: all 0.1s; color: white;
+            box-shadow: 0 4px rgba(0,0,0,0.2);
+        }
+        button.action-btn:active { transform: translateY(2px); box-shadow: none; }
+        button.action-btn:disabled { background: #ccc !important; cursor: not-allowed; transform: none; box-shadow: none !important;}
+        
+        #btn-setup { background: #29b6f6; }
+        #btn-start { background: #66bb6a; }
+        #btn-reset { background: #ef5350; }
+        #btn-results { background: #ab47bc; } /* Purple Button */
+        #btn-restore { background: #90a4ae; font-size: 13px; padding: 8px 12px; }
+
+        /* --- Sliders (Speed & Volume) --- */
+        .sliders-container {
+            display: flex; gap: 15px; margin-left: 10px;
+        }
+        .slider-box {
+            display: flex; align-items: center; background: #e1f5fe;
+            padding: 4px 10px; border-radius: 20px; border: 2px solid #81d4fa;
+        }
+        .slider-label { font-size: 16px; cursor: default; user-select: none; margin: 0 5px;}
+        input[type=range] { margin: 0 5px; cursor: pointer; width: 80px; }
+
+        /* --- River Track --- */
+        #river-container {
+            flex-grow: 1;
+            position: relative;
+            width: 98%; max-width: 1200px; margin: 0 auto;
+            border-radius: 15px; overflow: hidden;
+            border: 6px solid #0288d1;
+            background: linear-gradient(to bottom, #4fc3f7, #81d4fa);
+            box-shadow: inset 0 0 20px rgba(0,0,0,0.2);
+        }
+
+        #finish-line {
+            position: absolute; bottom: 30px; left: 0; width: 100%; height: 40px;
+            background: repeating-linear-gradient(45deg, #333, #333 10px, #fff 10px, #fff 20px);
+            opacity: 0.8; z-index: 1;
+        }
+        .finish-text {
+            position: absolute; bottom: 75px; width: 100%; text-align: center;
+            font-size: 20px; color: rgba(255,255,255,0.7); font-weight: bold; pointer-events: none;
+        }
+
+        /* --- Ducks --- */
+        .duck-wrapper {
+            position: absolute; top: 0; 
+            display: flex; flex-direction: column; align-items: center;
+            z-index: 10; visibility: hidden; will-change: transform;
+        }
+        .duck-finished { opacity: 0.4; filter: grayscale(90%); z-index: 5; transition: opacity 0.5s; }
+        
+        .name-bubble {
+            background: white; padding: 2px 8px; border-radius: 8px; 
+            font-size: 13px; font-weight: bold; color: #333; 
+            border: 1px solid #333; margin-bottom: -4px; white-space: nowrap;
+            z-index: 12; box-shadow: 1px 1px 2px rgba(0,0,0,0.2);
+        }
+
+        .duck-svg { width: 55px; height: 55px; }
+
+        /* --- Modals --- */
+        .modal-overlay {
+            display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7); z-index: 100; justify-content: center; align-items: center;
+        }
+        .modal-box {
+            background: white; padding: 30px 40px; border-radius: 20px; text-align: center;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5); border: 5px solid #039be5;
+            max-width: 90%; max-height: 80vh; overflow-y: auto;
+        }
+
+        /* Winner Modal Specifics */
+        .winner-title { font-size: 22px; color: #0277bd; margin-bottom: 5px;}
+        .winner-name { font-size: 50px; color: #d32f2f; margin: 10px 0; font-weight: 900;}
+        
+        .modal-btn-group { margin-top: 20px; display: flex; gap: 15px; justify-content: center; }
+        .btn-remove { background: #ff5252 !important; box-shadow: 0 4px #d32f2f !important; }
+        .btn-keep { background: #4caf50 !important; box-shadow: 0 4px #388e3c !important; }
+
+        /* Results Modal Specifics */
+        .results-title { font-size: 24px; color: #ab47bc; margin-bottom: 15px; font-weight: bold; }
+        #results-list {
+            list-style: none; padding: 0; margin: 0; 
+            text-align: left; width: 100%; min-width: 300px;
+            display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+        }
+        .result-item {
+            background: #f3e5f5; padding: 8px 15px; border-radius: 8px;
+            font-size: 16px; color: #4a148c; border-bottom: 2px solid #ce93d8;
+            display: flex; justify-content: space-between;
+        }
+        .rank-number { font-weight: bold; margin-right: 10px; color: #7b1fa2; }
+        .rank-name { font-weight: bold; }
+        .close-results-btn { margin-top: 20px; background: #7e57c2 !important; }
+        
+        /* Previous race indicator style */
+        .history-badge {
+            background: #eee; color: #666; font-size: 12px; padding: 2px 6px; 
+            border-radius: 4px; border: 1px solid #ccc; margin-left: 10px; vertical-align: middle;
+        }
+
+    </style>
+</head>
+<body>
+
+    <h1>🌊 Duck Survivor Race 🌊</h1>
+
+    <div id="controls">
+        <div class="class-selector">
+            <button class="class-btn" onclick="selectClass('G1A')">G1A</button>
+            <button class="class-btn" onclick="selectClass('G1B')">G1B</button>
+            <button class="class-btn" onclick="selectClass('G2A')">G2A</button>
+            <button class="class-btn" onclick="selectClass('G3A')">G3A</button>
+            <button class="class-btn" onclick="selectClass('G4A')">G4A</button>
+            <button class="class-btn" onclick="selectClass('G5A')">G5A</button>
+        </div>
+
+        <textarea id="nameList" placeholder="Select a class above..."></textarea>
+        
+        <div class="btn-group">
+            <button id="btn-setup" class="action-btn" onclick="setupRace()">1. Get Ready</button>
+            <button id="btn-start" class="action-btn" onclick="startRace()" disabled>2. GO!</button>
+            <button id="btn-results" class="action-btn" onclick="showResults()">🏆 Results</button>
+            <button id="btn-reset" class="action-btn" onclick="resetRace(false)">🔄 Reset</button>
+            <button id="btn-restore" class="action-btn" onclick="restoreOriginalList()">📋 Restore List</button>
+            
+            <div class="sliders-container">
+                <div class="slider-box" title="Duck Speed">
+                    <span class="slider-label">🐢</span>
+                    <input type="range" id="speedSlider" min="0.5" max="3.0" step="0.1" value="1.0">
+                    <span class="slider-label">🐇</span>
+                </div>
+                <div class="slider-box" title="Music Volume">
+                    <span class="slider-label">🔇</span>
+                    <input type="range" id="volumeSlider" min="0" max="1" step="0.1" value="0.5" oninput="updateVolume(this.value)">
+                    <span class="slider-label">🔊</span>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="river-container">
+        <div class="finish-text">FINISH LINE</div>
+        <div id="finish-line"></div>
+    </div>
+
+    <!-- Winner Modal -->
+    <div id="winner-modal" class="modal-overlay">
+        <div class="modal-box" id="winner-box">
+            <div class="winner-title">🎉 The Chosen One (Last Survivor) 🎉</div>
+            <div class="winner-name" id="winner-text">Name</div>
+            
+            <div class="modal-btn-group">
+                <button class="action-btn btn-remove" onclick="removeWinner()">👋 Remove & Continue</button>
+                <button class="action-btn btn-keep" onclick="keepWinner()">👀 Keep & Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Results Modal -->
+    <div id="results-modal" class="modal-overlay">
+        <div class="modal-box">
+            <div class="results-title" id="results-title-text">🏁 Race Rankings 🏁</div>
+            <ul id="results-list">
+                <!-- List items will be injected here -->
+            </ul>
+            <button class="action-btn close-results-btn" onclick="closeResults()">Close</button>
+        </div>
+    </div>
+
+    <audio id="bgm" loop>
+        <source src="https://cdn.pixabay.com/audio/2022/03/10/audio_c8c8a73467.mp3" type="audio/mpeg">
+    </audio>
+
+    <script>
+        // --- 1. Data (Updated Names) ---
+        const classData = {
+            "G1A": `Summer, Evie, Icy, Danny, Kelly, Kerry, Hannah, Victoria, Chloe, Candy, Lucas, Tiger, Andrew, Nixx, Eugene, Cason, Finn, Joe, Lucas Luo`,
+            "G1B": `Candice, Bella, Molly, Thea, Merlina, Kiori, Hilary, Yulia, Aina, Daniel, Simba, Whale, Ethan, Hulk, Leo, Philip, Amy, Tommy, Ceci Sun`,
+            "G2A": `Noah, Jason, Amber, Timothy, Seven, Megan, Cecelia, Kingston, Hugh, Naomi, Jackson, Stella, Lucas, Kitty, Sammy, Casey, Mike, Adelle, Fay`,
+            "G3A": `Wayne, Tao, Yumi, Aaron, Andy, Mia, Olivia, Luka, Terrison, Sophia, Eason, Liam, Julia, Kimi, Dora, Chloe, Eleanor, Ellie, Herman, Vanica, Joy, Kira, Yolanda, Ryco`,
+            "G4A": `Jerry, Hathaway, Ava, Aaron, Ella, Rosie, Emma, Alan, Daisy, Aiden, Henry, Linda, Nemo, Alvin, Elijah, Jason, Zoe, Jack, Catherine, Rex, Alice`,
+            "G5A": `Nancy, Bowen, Chloe, Timi, Alan, Neo, Elise, Nolan, Marcus, Louis, Aiia, Jt, Claire, Cathy, Mia, Edwin, Wendell, Vivian, Chloe Chen, Raymond, coco, Chara Chen, Jason, Leo, Nill`
+        };
+
+        const duckColors = ['#fff176', '#f06292', '#4dd0e1', '#ba68c8', '#aed581', '#ffb74d', '#ff8a65'];
+
+        // --- 2. Global Vars ---
+        let racing = false;
+        let ducks = [];
+        
+        // Data Handling
+        let finishOrder = [];         // Current race results (live)
+        let previousRaceResults = []; // Archived results from the last completed race
+        
+        let animationId = null;
+        let finishedCount = 0;
+        let currentWinnerName = "";
+        let currentOriginalList = ""; 
+        const bgm = document.getElementById('bgm');
+
+        bgm.volume = 0.5;
+
+        // --- 3. Functions ---
+
+        function updateVolume(val) {
+            bgm.volume = val;
+        }
+
+        function playMusic() {
+            bgm.currentTime = 0; 
+            bgm.play().catch(e => console.log("Audio requires user interaction first."));
+        }
+
+        function stopMusic() {
+            bgm.pause();
+        }
+
+        function selectClass(className) {
+            const textArea = document.getElementById('nameList');
+            if (!textArea) return; 
+
+            if (classData[className]) {
+                let cleanList = classData[className].replace(/\n/g, ", ");
+                textArea.value = cleanList;
+                currentOriginalList = cleanList;
+                
+                const btns = document.querySelectorAll('.class-btn');
+                btns.forEach(btn => {
+                    if (btn.innerText === className) btn.classList.add('active');
+                    else btn.classList.remove('active');
+                });
+
+                resetRace(false);
+            } else {
+                alert("Class data not found: " + className);
+            }
+        }
+
+        function restoreOriginalList() {
+            if (!currentOriginalList) {
+                alert("Please select a class first!");
+                return;
+            }
+            if(confirm("Restore the full original list for this class?")) {
+                document.getElementById('nameList').value = currentOriginalList;
+                resetRace(false);
+            }
+        }
+
+        function removeWinner() {
+            if (!currentWinnerName) return;
+            const textArea = document.getElementById('nameList');
+            let names = textArea.value.split(/[,，\n]/).map(n => n.trim()).filter(n => n !== "");
+            names = names.filter(n => n !== currentWinnerName);
+            textArea.value = names.join(", ");
+            document.getElementById('winner-modal').style.display = 'none';
+            resetRace(false);
+        }
+
+        function keepWinner() {
+            document.getElementById('winner-modal').style.display = 'none';
+        }
+
+        // --- Results Logic (Updated for History) ---
+        function showResults() {
+            const modal = document.getElementById('results-modal');
+            const list = document.getElementById('results-list');
+            const title = document.getElementById('results-title-text');
+            list.innerHTML = "";
+
+            let dataToShow = [];
+            let isHistory = false;
+
+            // Logic: Show current race if data exists, otherwise show previous race
+            if (finishOrder.length > 0) {
+                dataToShow = finishOrder;
+                title.innerText = "🏁 Current Race Rankings";
+            } else if (previousRaceResults.length > 0) {
+                dataToShow = previousRaceResults;
+                title.innerHTML = "🕒 Previous Race Rankings <span class='history-badge'>History</span>";
+                isHistory = true;
+            } else {
+                list.innerHTML = "<li style='grid-column: 1 / -1; text-align:center;'>No race data yet! Click 'Get Ready' then 'GO!'</li>";
+                modal.style.display = 'flex';
+                return;
+            }
+
+            dataToShow.forEach((name, index) => {
+                const li = document.createElement('li');
+                li.className = 'result-item';
+                
+                // Add special styling for podium
+                let rankIcon = `#${index + 1}`;
+                if (index === 0) rankIcon = "🥇 1st";
+                if (index === 1) rankIcon = "🥈 2nd";
+                if (index === 2) rankIcon = "🥉 3rd";
+                
+                // Mark the last one as Survivor
+                if (index === dataToShow.length - 1) {
+                     li.innerHTML = `<span class="rank-number">${rankIcon} (Last)</span> <span class="rank-name">${name}</span>`;
+                     li.style.borderLeft = "5px solid #d32f2f"; 
+                } else {
+                    li.innerHTML = `<span class="rank-number">${rankIcon}</span> <span class="rank-name">${name}</span>`;
+                }
+                
+                if (isHistory) {
+                    li.style.opacity = "0.9"; // Slight visual cue for history
+                }
+
+                list.appendChild(li);
+            });
+            modal.style.display = 'flex';
+        }
+
+        function closeResults() {
+            document.getElementById('results-modal').style.display = 'none';
+        }
+
+        // --- 4. Race Logic ---
+        
+        function createDuckSVG(color) {
+            return `
+            <svg class="duck-svg" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
+                <path d="M 25,75 C 25,90 85,90 85,75 C 85,55 65,55 65,45 C 65,25 45,25 45,35 C 35,35 25,55 25,75 Z" fill="${color}" stroke="#333" stroke-width="2"/>
+                <path d="M 80,50 L 95,55 L 80,60 Z" fill="#ffca28" stroke="#e65100" stroke-width="2"/>
+                <circle cx="60" cy="45" r="8" fill="white" stroke="#333" stroke-width="2"/>
+                <circle cx="62" cy="45" r="4" fill="#333"/>
+            </svg>`;
+        }
+
+        function setupRace() {
+            resetRace(false);
+            const textArea = document.getElementById('nameList');
+            const rawNames = textArea.value;
+            const names = rawNames.split(/[,，\n]/).map(n => n.trim()).filter(n => n !== "");
+            
+            if (names.length === 0) { alert("List is empty! Click 'Restore List'."); return; }
+            if (names.length === 1) { alert("Only one person left: " + names[0]); return; }
+
+            const river = document.getElementById('river-container');
+            const riverWidth = river.offsetWidth;
+            const laneWidth = riverWidth / names.length;
+
+            names.forEach((name, index) => {
+                const wrapper = document.createElement('div');
+                wrapper.className = 'duck-wrapper';
+                const color = duckColors[Math.floor(Math.random() * duckColors.length)];
+                wrapper.innerHTML = `<div class="name-bubble">${name}</div>${createDuckSVG(color)}`;
+                river.appendChild(wrapper);
+
+                const startX = (index * laneWidth) + (laneWidth / 2) - 27; 
+                const startY = 10; 
+                wrapper.style.transform = `translate(${startX}px, ${startY}px)`;
+                wrapper.style.visibility = 'visible';
+
+                ducks.push({
+                    element: wrapper,
+                    name: name,
+                    x: startX,
+                    y: startY,
+                    baseSpeed: Math.random() * 0.6 + 0.5,
+                    wobbleOffset: Math.random() * Math.PI * 2,
+                    finished: false
+                });
+            });
+
+            document.getElementById('btn-start').disabled = false;
+            document.getElementById('btn-start').textContent = "2. GO!";
+            document.getElementById('btn-setup').disabled = true;
+        }
+
+        function startRace() {
+            if (racing) return;
+            racing = true;
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-start').textContent = "Racing...";
+            
+            playMusic();
+            
+            let lastTime = performance.now();
+            const river = document.getElementById('river-container');
+            const speedSlider = document.getElementById('speedSlider');
+
+            function animate(time) {
+                if (!racing && finishedCount < ducks.length) return; 
+                const delta = time - lastTime;
+                lastTime = time;
+                const speedMultiplier = parseFloat(speedSlider.value) || 1.0;
+                const finishLineY = river.offsetHeight - 70;
+                let allFinished = true;
+
+                ducks.forEach(duck => {
+                    if (duck.finished) {
+                        if (duck.y < river.offsetHeight + 60) {
+                            duck.y += duck.baseSpeed * speedMultiplier;
+                            duck.element.style.transform = `translate(${duck.x}px, ${duck.y}px)`;
+                        }
+                        return;
+                    }
+                    
+                    allFinished = false;
+                    if (Math.random() > 0.99) duck.baseSpeed += Math.random() * 0.1;
+                    if (duck.baseSpeed > 2.5) duck.baseSpeed = 2.5;
+
+                    const currentSpeed = duck.baseSpeed * speedMultiplier;
+                    duck.y += currentSpeed;
+                    const currentWobble = Math.sin(time * 0.005 * speedMultiplier + duck.wobbleOffset) * 2;
+                    const currentX = duck.x + currentWobble;
+
+                    duck.element.style.transform = `translate(${currentX}px, ${duck.y}px)`;
+                    const svg = duck.element.querySelector('svg');
+                    if(svg) svg.style.transform = `rotate(${currentWobble * 3}deg)`;
+
+                    if (duck.y >= finishLineY) {
+                        duck.finished = true;
+                        
+                        // --- Log result ---
+                        finishOrder.push(duck.name);
+                        // ------------------
+
+                        finishedCount++;
+                        duck.element.classList.add('duck-finished');
+
+                        if (finishedCount === ducks.length) {
+                            racing = false;
+                            stopMusic();
+                            currentWinnerName = duck.name;
+                            document.getElementById('winner-text').innerText = duck.name;
+                            document.getElementById('winner-modal').style.display = 'flex';
+                        }
+                    }
+                });
+
+                if (!allFinished || finishedCount < ducks.length) {
+                    animationId = requestAnimationFrame(animate);
+                }
+            }
+            animationId = requestAnimationFrame(animate);
+        }
+
+        function resetRace(fullReset) {
+            // --- ARCHIVE RESULTS BEFORE CLEARING ---
+            // If we have data in the current finishOrder, save it to history
+            // before we wipe it for the new race setup.
+            if (finishOrder.length > 0) {
+                previousRaceResults = [...finishOrder];
+            }
+            // ---------------------------------------
+
+            racing = false;
+            stopMusic(); 
+            if (animationId) cancelAnimationFrame(animationId);
+            ducks = [];
+            finishOrder = []; // Clear current results for new race
+            finishedCount = 0;
+            
+            const wrappers = document.querySelectorAll('.duck-wrapper');
+            wrappers.forEach(w => w.remove());
+
+            document.getElementById('btn-start').disabled = true;
+            document.getElementById('btn-start').textContent = "2. GO!";
+            document.getElementById('btn-setup').disabled = false;
+            document.getElementById('winner-modal').style.display = 'none';
+            document.getElementById('results-modal').style.display = 'none';
+        }
+
+        // --- 5. Init ---
+        window.onload = function() {
+            selectClass('G3A');
+        };
+
+    </script>
+</body>
+</html>
